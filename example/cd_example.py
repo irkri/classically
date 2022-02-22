@@ -11,7 +11,10 @@ accuracy = np.array([
     [37, 68, 47, 18, 88, 37, 27, 25, 24, 79, 25, 83, 36, 64],
 ]) / 100.0
 
-fig, ax = critical_difference_diagram(accuracy)
+fig, ax = critical_difference_diagram(
+    accuracy,
+    labels=["A", "B", "C", "D", "E"],
+)
 
-plt.savefig("cd_example.png")
+plt.savefig("cd_example.png", dpi=256)
 plt.show()

@@ -116,6 +116,19 @@ def critical_difference_diagram(
     avg_ranks = (n_classifiers - stats.rankdata(data, axis=0) + 1).mean(axis=1)
     avg_ranks_order = avg_ranks.argsort()[::-1]
 
+    # get cliques of significant test results by building an adjacency
+    # matrix and using the networkx package
+    adjacency_matrix = np.zeros((n_classifiers, n_classifiers))
+    indexing = np.array(np.triu_indices(n_classifiers, k=1))
+    for index in np.where(~significant):
+        i, j = indexing[:, index]
+        adjacency_matrix[i, j] = 1
+    cliques = [
+        clique for clique in networkx.find_cliques(
+            networkx.Graph(adjacency_matrix)
+        ) if len(clique) > 1
+    ]
+
     # initialize and configure plot
     width = 6 + 0.3 * max(map(len, labels))
     height = 1.0 + n_classifiers * 0.1
@@ -138,38 +151,47 @@ def critical_difference_diagram(
     ax.tick_params(which='minor', width=2.0, length=3, labelsize=12)
     ax.set_xlim(highest_rank, lowest_rank)
     ax.set_ylim(0.0, 1.0)
+
     fig.subplots_adjust(bottom=-0.6, top=0.7)
 
-    half = int(np.ceil(n_classifiers / 2))
-
     # visual configurations
-    rank_xshift = 0.02 * (highest_rank-lowest_rank)
+    half = int(np.ceil(n_classifiers / 2))
     label_xshift = 0.05 * (highest_rank-lowest_rank)
+    rank_label_xshift = 0.02 * (highest_rank-lowest_rank)
     label_offset = 0.01 * (highest_rank-lowest_rank)
-    first_marking = 0.6
-    markings_vspace = 0.35 * 1/half
+    lower_marking = 0.6
+    markings_vspace = 0.35 / half
     markings_color = (0.15, 0.15, 0.15, 1.0)
     cliques_color = get_color(1) + (0.9, )
+    first_clique_line = 0.9 + (len(cliques) + 3) / 100
+    if len(cliques) >= 4:
+        first_clique_line = 0.96
+    clique_line_vspace = (
+        1 - (lower_marking + (half-1) * markings_vspace) - 0.001
+    )
+    print(f"{clique_line_vspace=}")
+    if len(cliques) > 0:
+        clique_line_vspace /= len(cliques)
 
     # draw left branching markings
     for i, index in enumerate(avg_ranks_order[:half]):
         ax.axvline(
             x=avg_ranks[index],
-            ymin=first_marking + (half-i-1)*markings_vspace,
+            ymin=lower_marking + (half-i-1)*markings_vspace,
             ymax=1.0,
             c=markings_color,
             lw=2.0,
         )
         ax.axhline(
-            y=first_marking + (half-i-1)*markings_vspace,
+            y=lower_marking + (half-i-1)*markings_vspace,
             xmin=(half-i-1) * label_xshift / (highest_rank-lowest_rank),
             xmax=(highest_rank-avg_ranks[index]) / (highest_rank-lowest_rank),
             c=markings_color,
             lw=2.0,
         )
         ax.text(
-            x=highest_rank - rank_xshift - (half-i-1)*label_xshift,
-            y=first_marking + (half-i-1)*markings_vspace,
+            x=highest_rank - rank_label_xshift - (half-i-1)*label_xshift,
+            y=lower_marking + (half-i-1)*markings_vspace,
             s=f"{avg_ranks[index]:.2f}",
             ha="left",
             va="bottom",
@@ -177,7 +199,7 @@ def critical_difference_diagram(
         )
         ax.text(
             x=highest_rank - (half-i-1)*label_xshift + label_offset,
-            y=first_marking + (half-i-1)*markings_vspace,
+            y=lower_marking + (half-i-1)*markings_vspace,
             s=f"{labels[index]}",
             ha="right",
             va="center",
@@ -188,21 +210,21 @@ def critical_difference_diagram(
     for i, index in enumerate(avg_ranks_order[half:]):
         ax.axvline(
             x=avg_ranks[index],
-            ymin=first_marking + i*markings_vspace,
+            ymin=lower_marking + i*markings_vspace,
             ymax=1.0,
             c=markings_color,
             lw=2.0,
         )
         ax.axhline(
-            y=first_marking + i*markings_vspace,
+            y=lower_marking + i*markings_vspace,
             xmin=(highest_rank-avg_ranks[index]) / (highest_rank-lowest_rank),
             xmax=1.0 - i * label_xshift / (highest_rank-lowest_rank),
             c=markings_color,
             lw=2.0,
         )
         ax.text(
-            x=lowest_rank + rank_xshift + i*label_xshift,
-            y=first_marking + i*markings_vspace,
+            x=lowest_rank + rank_label_xshift + i*label_xshift,
+            y=lower_marking + i*markings_vspace,
             s=f"{avg_ranks[index]:.2f}",
             ha="right",
             va="bottom",
@@ -210,37 +232,15 @@ def critical_difference_diagram(
         )
         ax.text(
             x=lowest_rank + i*label_xshift - label_offset,
-            y=first_marking + i*markings_vspace,
+            y=lower_marking + i*markings_vspace,
             s=f"{labels[index]}",
             ha="left",
             va="center",
             size=14,
         )
 
-    # get cliques of significant test results by building an adjacency
-    # matrix and using the networkx package
-    adjacency_matrix = np.zeros((n_classifiers, n_classifiers))
-    indexing = np.array(np.triu_indices(n_classifiers, k=1))
-    for index in np.where(~significant):
-        i, j = indexing[:, index]
-        adjacency_matrix[i, j] = 1
-    cliques = [
-        clique for clique in networkx.find_cliques(
-            networkx.Graph(adjacency_matrix)
-        ) if len(clique) > 1
-    ]
-
     # draw the cliques, i.e. connect classifiers that don't have a
     # significant difference
-    i = 1
-    if len(cliques) < 4:
-        first_clique_line = 0.9 + (len(cliques) + 4) / 100
-    else:
-        first_clique_line = 0.97
-    clique_line_diff = (1 - (first_marking + (half-1)*markings_vspace))
-    clique_line_diff -= 0.001
-    if len(cliques) > 0:
-        clique_line_diff /= len(cliques)
     clique_line_y = first_clique_line
     for clique in cliques:
         xmin = (
@@ -256,7 +256,7 @@ def critical_difference_diagram(
             color=cliques_color,
             linewidth=4.0,
         )
-        clique_line_y -= clique_line_diff
+        clique_line_y -= clique_line_vspace
 
     if on_axis is None:
         return fig, ax

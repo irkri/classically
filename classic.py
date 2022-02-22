@@ -111,12 +111,10 @@ def critical_difference_diagram(
     p_order = np.argsort(p_values)
     holm_bonferroni = alpha / np.arange(p_values.shape[0], 0, -1)
     significant = (p_values[p_order] <= holm_bonferroni)[p_order.argsort()]
-    print(f"{significant=}")
 
     # calculate average ranks of classifiers over all datasets
     avg_ranks = (n_classifiers - stats.rankdata(data, axis=0) + 1).mean(axis=1)
     avg_ranks_order = avg_ranks.argsort()[::-1]
-    print(f"{avg_ranks_order=}")
 
     # initialize and configure plot
     width = 6 + 0.3 * max(map(len, labels))
@@ -226,15 +224,11 @@ def critical_difference_diagram(
     for index in np.where(~significant):
         i, j = indexing[:, index]
         adjacency_matrix[i, j] = 1
-    print(adjacency_matrix)
     cliques = [
         clique for clique in networkx.find_cliques(
             networkx.Graph(adjacency_matrix)
         ) if len(clique) > 1
     ]
-    fig, newax = plt.subplots()
-    networkx.draw(networkx.Graph(adjacency_matrix), ax=newax)
-    print(f"{cliques=}")
 
     # draw the cliques, i.e. connect classifiers that don't have a
     # significant difference

@@ -1,12 +1,27 @@
-from typing import Optional, Sequence, overload
+from typing import Union, Optional, Sequence, overload
 
 import networkx
 import numpy as np
 import scipy.stats as stats
 from matplotlib import pyplot as plt
 from matplotlib import ticker
+from matplotlib import cm as colormaps
 
-from classic.basic import get_color
+
+def get_color(
+    index: int = 0,
+    cmap: str = "tab20b",
+) -> tuple[float, float, float]:
+    """Returns a RGB color as a tuple using some colormap from
+    matplotlib. This method is used to easily retrieve already use
+    colors again for coloring a pyplot by indexing different colors.
+
+    Args:
+        index (int, optional): The index of the color. Defaults to 0.
+        cmap (str, optional): The name of the colormap to use.
+            Defaults to 'tab20b'.
+    """
+    return colormaps.get_cmap(cmap).colors[2:][index-5]
 
 
 @overload
@@ -36,8 +51,8 @@ def critical_difference_diagram(
     alpha: float = 0.05,
 ) -> Optional[tuple[plt.Figure, plt.Axes]]:
     """Draws and returns a figure of a critical difference diagram based
-    on the accuracies given to the class object. This type of plot was
-    described in the paper
+    on the given categorized and normalized values. This type of plot
+    was described in the paper
     'Statistical Comparison of Classifiers over Multiple Data Sets'
     by Janez Demsar, 2006.
 
@@ -207,9 +222,8 @@ def critical_difference_diagram(
     # get cliques of significant test results by building an adjacency
     # matrix and using the networkx package
     adjacency_matrix = np.zeros((n_classifiers, n_classifiers))
-    connect_at = np.where(~significant)
     indexing = np.array(np.triu_indices(n_classifiers, k=1))
-    for index in connect_at:
+    for index in np.where(~significant):
         i, j = indexing[:, index]
         adjacency_matrix[i, j] = 1
     print(adjacency_matrix)
@@ -236,13 +250,11 @@ def critical_difference_diagram(
     clique_line_y = first_clique_line
     for clique in cliques:
         xmin = (
-            (highest_rank - avg_ranks[avg_ranks_order[min(clique)]])
-            / (highest_rank - lowest_rank)
-        )
+            highest_rank - avg_ranks[max(clique, key=lambda i: avg_ranks[i])]
+        ) / (highest_rank - lowest_rank)
         xmax = (
-            (highest_rank - avg_ranks[avg_ranks_order[max(clique)]])
-            / (highest_rank - lowest_rank)
-        )
+            highest_rank - avg_ranks[min(clique, key=lambda i: avg_ranks[i])]
+        ) / (highest_rank - lowest_rank)
         ax.axhline(
             y=clique_line_y,
             xmin=xmin,
@@ -254,4 +266,119 @@ def critical_difference_diagram(
 
     if on_axis is None:
         return fig, ax
+    return None
+
+
+def scatter(
+    data: Union[np.ndarray, tuple[np.ndarray, np.ndarray]],
+    opacity: Optional[np.ndarray] = None,
+    labels: Optional[Sequence[str]] = None,
+    on_axis: Optional[plt.Axes] = None,
+) -> Optional[tuple[plt.Figure, plt.Axes]]:
+    """Creates a 2D scatter plot for the given data.
+
+    Args:
+        data (np.ndarray | tuple[np.ndarray, np.ndarray]): One or a
+            tuple of two numpy arrays. If one is given, a histogram of
+            the data is drawn.
+        opacity (np.ndarray, optional): A numpy array with matching
+            length as the ones supplied in ``data``. Points in the
+            scatter plot will have corresponding opacity color values.
+        labels (Sequence[str], optional): The labels of the two sets of
+            data categories, e.g. the name of the classifiers used to
+            create given accuracy results.
+        on_axis (plt.Axes, optional): A matplotlib axis that the plot
+            will be drawn on. If none is supplied, a new one will be
+            created first.
+
+    Returns:
+        Pyplot figure and axis with the scatter plot.
+    """
+    fig, axs = plt.subplots(1, 1)
+    if on_axis is not None:
+        axs = on_axis
+    if isinstance(data, tuple):
+        n_datasets = data[0].shape[0]
+        colors = np.zeros((n_datasets, 4))
+        colors[:, :3] = get_color(0)
+        colors[:, 3] = opacity
+
+        # set up the axis
+        axs.axis('square')
+        axs.set_xlim([0, 1])
+        axs.set_ylim([0, 1])
+        axs.scatter(
+            data[0], data[1],
+            c=opacity,
+            cmap="copper_r",
+        )
+
+        # draw auxiliary lines for equality and five percent difference
+        axs.plot(
+            [0, 1], [0, 1],
+            transform=axs.transAxes,
+            color=get_color(1),
+            ls="--",
+        )
+        axs.plot(
+            [0.05, 1], [0, 0.95],
+            transform=axs.transAxes,
+            color=get_color(1) + (0.3,),
+            ls="--",
+        )
+        axs.plot(
+            [0, 0.95], [0.05, 1],
+            transform=axs.transAxes,
+            color=get_color(1) + (0.3,),
+            ls="--",
+        )
+
+        # draw lines for the mean values on each axis
+        mean1 = data[0].mean()
+        mean2 = data[1].mean()
+        axs.axhline(
+            mean1,
+            xmin=0,
+            xmax=mean1,
+            color=get_color(3) + (0.5, ),
+            ls="--",
+        )
+        axs.axvline(
+            mean2,
+            ymin=0,
+            ymax=mean2,
+            color=get_color(3) + (0.5, ),
+            ls="--"
+        )
+
+        # place labels if given
+        if labels is not None:
+            if len(labels) != 2:
+                raise ValueError(f"Expected two labels, got {len(labels)}")
+            axs.text(
+                x=0.02,
+                y=0.98,
+                s=labels[0],
+                size="large",
+                ha="left",
+                va="top",
+            )
+            axs.text(
+                x=0.98,
+                y=0.02,
+                s=labels[1],
+                size="large",
+                ha="right",
+                va="bottom",
+            )
+    else:
+        weights = np.ones_like(data)
+        weights /= data.shape[0]
+        axs.hist(
+            data,
+            weights=weights,
+        )
+
+    if on_axis is None:
+        return fig, axs
     return None

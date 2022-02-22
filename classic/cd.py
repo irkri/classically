@@ -9,6 +9,26 @@ from matplotlib import ticker
 from classic.basic import get_color
 
 
+@overload
+def critical_difference_diagram(
+    data: np.ndarray,
+    labels: Optional[Sequence[str]] = None,
+    on_axis: None = None,
+    alpha: float = 0.05,
+) -> tuple[plt.Figure, plt.Axes]:
+    ...
+
+
+@overload
+def critical_difference_diagram(
+    data: np.ndarray,
+    labels: Optional[Sequence[str]] = None,
+    on_axis: plt.Axes = None,
+    alpha: float = 0.05,
+) -> None:
+    ...
+
+
 def critical_difference_diagram(
     data: np.ndarray,
     labels: Optional[Sequence[str]] = None,
@@ -18,7 +38,7 @@ def critical_difference_diagram(
     """Draws and returns a figure of a critical difference diagram based
     on the accuracies given to the class object. This type of plot was
     described in the paper
-    'Statistical Comparision of Classifiers over Multiple Data Sets'
+    'Statistical Comparison of Classifiers over Multiple Data Sets'
     by Janez Demsar, 2006.
 
     Args:
@@ -57,30 +77,31 @@ def critical_difference_diagram(
         shape=(int(n_classifiers * (n_classifiers-1) / 2), ),
         dtype=np.float32,
     )
-    c = 0
+    c = -1
     for i in range(n_classifiers-1):
         for j in range(i+1, n_classifiers):
+            c += 1
+            mode = "exact"
+            if (nzeros := np.sum((data[i] - data[j]) == 0)) >= 1:
+                if nzeros == len(data[i, :]):
+                    p_values[c] = 1.0
+                    continue
+                mode = "approx"
             p_values[c] = stats.wilcoxon(
                 data[i, :],
                 data[j, :],
                 zero_method='pratt',
+                mode=mode,
             )[1]
-            c += 1
     p_order = np.argsort(p_values)
-    holm_bonferroni = np.arange(p_values.shape[0], 0, -1) * 1/alpha
-    p_significant = (p_values[p_order] <= holm_bonferroni)[p_order.argsort()]
+    holm_bonferroni = alpha / np.arange(p_values.shape[0], 0, -1)
+    significant = (p_values[p_order] <= holm_bonferroni)[p_order.argsort()]
+    print(f"{significant=}")
 
-    # calculate average ranks of classifiers
-    avg_ranks: np.ndarray = stats.rankdata(data, axis=0)
-    print(avg_ranks)
-    avg_ranks = n_classifiers - avg_ranks + 1
-    avg_ranks = avg_ranks.mean(axis=1)
-    print(avg_ranks)
+    # calculate average ranks of classifiers over all datasets
+    avg_ranks = (n_classifiers - stats.rankdata(data, axis=0) + 1).mean(axis=1)
     avg_ranks_order = avg_ranks.argsort()[::-1]
-    print(avg_ranks_order)
-
-    lowest_rank = min(1, int(np.floor(avg_ranks.min())))
-    highest_rank = max(len(avg_ranks), int(np.ceil(avg_ranks.max())))
+    print(f"{avg_ranks_order=}")
 
     # initialize and configure plot
     width = 6 + 0.3 * max(map(len, labels))
@@ -88,6 +109,9 @@ def critical_difference_diagram(
     fig, ax = plt.subplots(1, 1, figsize=(width, height))
     if on_axis is not None:
         ax = on_axis
+
+    lowest_rank = min(1, int(np.floor(avg_ranks.min())))
+    highest_rank = max(len(avg_ranks), int(np.ceil(avg_ranks.max())))
 
     ax.xaxis.set_major_locator(ticker.MultipleLocator(1))
     ax.xaxis.set_minor_locator(ticker.MultipleLocator(0.5))
@@ -112,10 +136,10 @@ def critical_difference_diagram(
     first_marking = 0.6
     markings_vspace = 0.35 * 1/half
     markings_color = (0.15, 0.15, 0.15, 1.0)
-    cliques_color = get_color(1) + (0.8,)
+    cliques_color = get_color(1) + (0.9, )
 
+    # draw left branching markings
     for i, index in enumerate(avg_ranks_order[:half]):
-        # draw left branching markings
         ax.axvline(
             x=avg_ranks[index],
             ymin=first_marking + (half-i-1)*markings_vspace,
@@ -123,37 +147,80 @@ def critical_difference_diagram(
             c=markings_color,
             lw=2.0,
         )
-        # draw right branching markings
         ax.axhline(
             y=first_marking + (half-i-1)*markings_vspace,
             xmin=(half-i-1) * label_xshift / (highest_rank-lowest_rank),
-            xmax=((highest_rank-avg_ranks[index])
-                    / (highest_rank-lowest_rank)),
+            xmax=(highest_rank-avg_ranks[index]) / (highest_rank-lowest_rank),
             c=markings_color,
             lw=2.0,
         )
-        ax.text(highest_rank - rank_xshift - (half-i-1)*label_xshift,
-                first_marking + (half-i-1)*markings_vspace,
-                f"{avg_ranks[index]:.2f}",
-                ha="left", va="bottom", size=8)
-        ax.text(highest_rank - (half-i-1)*label_xshift + label_offset,
-                first_marking + (half-i-1)*markings_vspace,
-                f"{labels[index]}",
-                ha="right", va="center", size=14)
+        ax.text(
+            x=highest_rank - rank_xshift - (half-i-1)*label_xshift,
+            y=first_marking + (half-i-1)*markings_vspace,
+            s=f"{avg_ranks[index]:.2f}",
+            ha="left",
+            va="bottom",
+            size=8,
+        )
+        ax.text(
+            x=highest_rank - (half-i-1)*label_xshift + label_offset,
+            y=first_marking + (half-i-1)*markings_vspace,
+            s=f"{labels[index]}",
+            ha="right",
+            va="center",
+            size=14,
+        )
 
-    # get cliques of significant test results by building a adjacency
+    # draw right branching markings
+    for i, index in enumerate(avg_ranks_order[half:]):
+        ax.axvline(
+            x=avg_ranks[index],
+            ymin=first_marking + i*markings_vspace,
+            ymax=1.0,
+            c=markings_color,
+            lw=2.0,
+        )
+        ax.axhline(
+            y=first_marking + i*markings_vspace,
+            xmin=(highest_rank-avg_ranks[index]) / (highest_rank-lowest_rank),
+            xmax=1.0 - i * label_xshift / (highest_rank-lowest_rank),
+            c=markings_color,
+            lw=2.0,
+        )
+        ax.text(
+            x=lowest_rank + rank_xshift + i*label_xshift,
+            y=first_marking + i*markings_vspace,
+            s=f"{avg_ranks[index]:.2f}",
+            ha="right",
+            va="bottom",
+            size=8,
+        )
+        ax.text(
+            x=lowest_rank + i*label_xshift - label_offset,
+            y=first_marking + i*markings_vspace,
+            s=f"{labels[index]}",
+            ha="left",
+            va="center",
+            size=14,
+        )
+
+    # get cliques of significant test results by building an adjacency
     # matrix and using the networkx package
     adjacency_matrix = np.zeros((n_classifiers, n_classifiers))
-    connect_at = np.where(~p_significant)
+    connect_at = np.where(~significant)
     indexing = np.array(np.triu_indices(n_classifiers, k=1))
     for index in connect_at:
         i, j = indexing[:, index]
         adjacency_matrix[i, j] = 1
-    ccliques = list(networkx.find_cliques(networkx.Graph(adjacency_matrix)))
-    cliques = []
-    for clique in ccliques:
-        if len(clique) > 1:
-            cliques.append(clique)
+    print(adjacency_matrix)
+    cliques = [
+        clique for clique in networkx.find_cliques(
+            networkx.Graph(adjacency_matrix)
+        ) if len(clique) > 1
+    ]
+    fig, newax = plt.subplots()
+    networkx.draw(networkx.Graph(adjacency_matrix), ax=newax)
+    print(f"{cliques=}")
 
     # draw the cliques, i.e. connect classifiers that don't have a
     # significant difference
@@ -168,14 +235,18 @@ def critical_difference_diagram(
         clique_line_diff /= len(cliques)
     clique_line_y = first_clique_line
     for clique in cliques:
-        left = min(clique)
-        right = max(clique)
+        xmin = (
+            (highest_rank - avg_ranks[avg_ranks_order[min(clique)]])
+            / (highest_rank - lowest_rank)
+        )
+        xmax = (
+            (highest_rank - avg_ranks[avg_ranks_order[max(clique)]])
+            / (highest_rank - lowest_rank)
+        )
         ax.axhline(
             y=clique_line_y,
-            xmin=((highest_rank-avg_ranks[avg_ranks_order[left]])
-                    / (highest_rank-lowest_rank)),
-            xmax=((highest_rank-avg_ranks[avg_ranks_order[right]])
-                    / (highest_rank-lowest_rank)),
+            xmin=xmin,
+            xmax=xmax,
             color=cliques_color,
             linewidth=4.0,
         )

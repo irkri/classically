@@ -1,0 +1,20 @@
+[tool.poetry]
+name = "classic"
+version = "0.1.0"
+description = "Comparision of Classifiers in Python"
+authors = ["alienkrieg <alienkrieg@gmail.com>"]
+
+[tool.poetry.dependencies]
+python = ">=3.9, <3.10"
+scipy = "^1.8.0"
+matplotlib = "^3.5.1"
+numpy = "^1.22.2"
+pandas = "^1.4.1"
+networkx = "^2.6.3"
+
+[tool.poetry.dev-dependencies]
+pytest = "^5.2"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"

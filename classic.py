@@ -1,5 +1,4 @@
-from cProfile import label
-from multiprocessing.sharedctypes import Value
+from itertools import combinations, combinations_with_replacement
 from typing import Union, Optional, Sequence, overload
 
 import networkx
@@ -7,23 +6,6 @@ import numpy as np
 import scipy.stats as stats
 from matplotlib import pyplot as plt
 from matplotlib import ticker
-from matplotlib import cm as colormaps
-
-
-def get_color(
-    index: int = 0,
-    cmap: str = "tab20b",
-) -> tuple[float, float, float]:
-    """Returns a RGB color as a tuple using some colormap from
-    matplotlib. This method is used to easily retrieve already use
-    colors again for coloring a pyplot by indexing different colors.
-
-    Args:
-        index (int, optional): The index of the color. Defaults to 0.
-        cmap (str, optional): The name of the colormap to use.
-            Defaults to 'tab20b'.
-    """
-    return colormaps.get_cmap(cmap).colors[2:][index-5]
 
 
 @overload
@@ -51,6 +33,7 @@ def critical_difference_diagram(
     labels: Optional[Sequence[str]] = None,
     on_axis: Optional[plt.Axes] = None,
     alpha: float = 0.05,
+    color_cliques: Optional[tuple[float, float, float]] = None,
 ) -> Optional[tuple[plt.Figure, plt.Axes]]:
     """Draws and returns a figure of a critical difference diagram based
     on the given categorized and normalized values. This type of plot
@@ -164,14 +147,15 @@ def critical_difference_diagram(
     lower_marking = 0.6
     markings_vspace = 0.35 / half
     markings_color = (0.15, 0.15, 0.15, 1.0)
-    cliques_color = get_color(1) + (0.9, )
+    cliques_color = (
+        (0.9, 0.5, 0.3) if color_cliques is None else color_cliques
+    ) + (0.9, )
     first_clique_line = 0.9 + (len(cliques) + 3) / 100
     if len(cliques) >= 4:
         first_clique_line = 0.96
     clique_line_vspace = (
         1 - (lower_marking + (half-1) * markings_vspace) - 0.001
     )
-    print(f"{clique_line_vspace=}")
     if len(cliques) > 0:
         clique_line_vspace /= len(cliques)
 
@@ -265,166 +249,119 @@ def critical_difference_diagram(
     return None
 
 
-@overload
-def scattercomp(
-    data: Union[np.ndarray, tuple[np.ndarray, np.ndarray]],
+def _hist(
+    data: np.ndarray,
+    axis: plt.Axes,
+    label: str,
+    color: Optional[tuple[float, float, float]] = None,
+) -> None:
+    weights = np.ones_like(data)
+    weights /= data.shape[0]
+    axis.hist(
+        data,
+        bins=[0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0],
+        weights=weights,
+        color=(0.9, 0.5, 0.3) if color is None else color,
+    )
+    axis.text(x=0.02, y=0.98, s=label, size="large", ha="left", va="top")
+
+
+def _scattercomp(
+    data: np.ndarray,
+    axis: plt.Axes,
+    labels: tuple[str, str],
     opacity: Optional[np.ndarray] = None,
-    labels: Optional[Sequence[str]] = None,
-    on_axis: None = None,
+    color: Optional[tuple[float, float, float]] = None,
+    color_ml: Optional[tuple[float, float, float]] = None,
+    color_dl: Optional[tuple[float, float, float]] = None,
+) -> None:
+    n_datasets = data[0].shape[0]
+    colors = np.zeros((n_datasets, 4))
+    colors[:, :3] = (0.9, 0.5, 0.3) if color is None else color
+    colors[:, 3] = opacity if opacity is not None else 1.0
+
+    # draw scatterplot
+    axis.scatter(data[0, :], data[1, :], c=colors)
+
+    # draw diagonal auxiliary lines
+    axis.plot(
+        [0, 1], [0, 1],
+        transform=axis.transAxes,
+        color=(0.2, 0.1, 0.7) if color_dl is None else color_dl,
+        ls="--",
+    )
+    axis.plot(
+        [0.05, 1], [0, 0.95],
+        [0, 0.95], [0.05, 1],
+        transform=axis.transAxes,
+        color=((0.2, 0.1, 0.7) if color_dl is None else color_dl) + (0.3, ),
+        ls="--",
+    )
+
+    # draw lines for the mean values on each axis
+    mean1 = data[0].mean()
+    mean2 = data[1].mean()
+    opacity1, ls1 = (0.8, "-") if mean1 > mean2 else (0.5, "--")
+    opacity2, ls2 = (0.8, "-") if mean2 > mean1 else (0.5, "--")
+    axis.axhline(
+        mean2,
+        xmin=0,
+        xmax=mean2,
+        color=((0.2, 0.4, 0.3) if color_ml is None else color_ml)
+              + (opacity2, ),
+        ls=ls2,
+    )
+    axis.axvline(
+        mean1,
+        ymin=0,
+        ymax=mean1,
+        color=((0.2, 0.4, 0.3) if color_ml is None else color_ml)
+              + (opacity1, ),
+        ls=ls1,
+    )
+    axis.text(0.02, 0.98, s=labels[0], size="large", ha="left", va="top")
+    axis.text(0.98, 0.02, s=labels[1], size="large", ha="right", va="bottom")
+
+
+@overload
+def scatter_comparison(
+    data: np.ndarray,
+    opacity: Optional[np.ndarray] = None,
+    labels: Optional[Union[str, Sequence[str]]] = None,
+    axes: None = None,
+    max_cols: int = 4,
 ) -> tuple[plt.Figure, plt.Axes]:
     ...
 
 
 @overload
-def scattercomp(
-    data: Union[np.ndarray, tuple[np.ndarray, np.ndarray]],
+def scatter_comparison(
+    data: np.ndarray,
     opacity: Optional[np.ndarray] = None,
-    labels: Optional[Sequence[str]] = None,
-    on_axis: plt.Axes = None,
+    labels: Optional[Union[str, Sequence[str]]] = None,
+    axes: Union[plt.Axes, np.ndarray] = None,
+    max_cols: int = 4,
 ) -> None:
     ...
 
 
-def scattercomp(
-    data: Union[np.ndarray, tuple[np.ndarray, np.ndarray]],
+def scatter_comparison(
+    data: np.ndarray,
     opacity: Optional[np.ndarray] = None,
-    labels: Optional[Union[str, tuple[str, str]]] = None,
-    on_axis: Optional[plt.Axes] = None,
+    labels: Optional[Union[str, Sequence[str]]] = None,
+    axes: Optional[Union[plt.Axes, np.ndarray]] = None,
+    max_cols: int = 4,
+    draw_hist: bool = False,
+    color: Optional[tuple[float, float, float]] = None,
+    color_ml: Optional[tuple[float, float, float]] = None,
+    color_dl: Optional[tuple[float, float, float]] = None,
 ) -> Optional[tuple[plt.Figure, plt.Axes]]:
-    """Creates a 2D scatter plot for the given data.
-
-    Args:
-        data (np.ndarray | tuple[np.ndarray, np.ndarray]): One or a
-            tuple of two numpy arrays. If one is given, a histogram of
-            the data is drawn.
-        opacity (np.ndarray, optional): A numpy array with matching
-            length as the ones supplied in ``data``. Points in the
-            scatter plot will have corresponding opacity color values.
-        labels (str | tuple[str, str], optional): The labels for the two
-            sets of data categories, e.g. the name of the classifiers
-            used to create given accuracy results.
-        on_axis (plt.Axes, optional): A matplotlib axis that the plot
-            will be drawn on. If none is supplied, a new one will be
-            created first and returned after the function finished.
-
-    Returns:
-        Pyplot figure and axis with the plot or None if the argument
-        ``on_axis`` is supplied.
-    """
-    if on_axis is not None:
-        ax = on_axis
-    else:
-        fig, ax = plt.subplots(1, 1)
-    ax.axis('square')
-    ax.set_xlim([0, 1])
-    ax.set_ylim([0, 1])
-    if isinstance(data, tuple):
-        if labels is not None and not isinstance(labels, tuple):
-            raise TypeError("Expected a tuple of label strings")
-        n_datasets = data[0].shape[0]
-        colors = np.zeros((n_datasets, 4))
-        colors[:, :3] = get_color(0)
-        colors[:, 3] = opacity
-
-        # set up the axis
-        ax.scatter(
-            data[0], data[1],
-            c=opacity,
-            cmap="copper_r",
-        )
-
-        # draw auxiliary lines for equality and five percent difference
-        ax.plot(
-            [0, 1], [0, 1],
-            transform=ax.transAxes,
-            color=get_color(1),
-            ls="--",
-        )
-        ax.plot(
-            [0.05, 1], [0, 0.95],
-            transform=ax.transAxes,
-            color=get_color(1) + (0.3,),
-            ls="--",
-        )
-        ax.plot(
-            [0, 0.95], [0.05, 1],
-            transform=ax.transAxes,
-            color=get_color(1) + (0.3,),
-            ls="--",
-        )
-
-        # draw lines for the mean values on each axis
-        mean1 = data[0].mean()
-        mean2 = data[1].mean()
-        opacity1, ls1 = (0.8, "-") if mean1 > mean2 else (0.5, "--")
-        opacity2, ls2 = (0.8, "-") if mean2 > mean1 else (0.5, "--")
-        ax.axhline(
-            mean2,
-            xmin=0,
-            xmax=mean2,
-            color=get_color(3) + (opacity2, ),
-            ls=ls2,
-        )
-        ax.axvline(
-            mean1,
-            ymin=0,
-            ymax=mean1,
-            color=get_color(3) + (opacity1, ),
-            ls=ls1,
-        )
-
-        # place labels if given
-        if labels is not None:
-            ax.text(
-                x=0.02,
-                y=0.98,
-                s=labels[0],
-                size="large",
-                ha="left",
-                va="top",
-            )
-            ax.text(
-                x=0.98,
-                y=0.02,
-                s=labels[1],
-                size="large",
-                ha="right",
-                va="bottom",
-            )
-    else:
-        if labels is not None and not isinstance(labels, str):
-            raise TypeError("Expected a single label string, "
-                            f"got {type(labels)}")
-        weights = np.ones_like(data)
-        weights /= data.shape[0]
-        ax.hist(
-            data,
-            bins=[0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0],
-            weights=weights,
-            # density=True,
-        )
-        if labels is not None:
-            ax.text(
-                x=0.02,
-                y=0.98,
-                s=labels[0],
-                size="large",
-                ha="left",
-                va="top",
-            )
-
-    if on_axis is None:
-        return fig, ax
-    return None
-
-
-def scattercomp_matrix(
-    data: np.ndarray,
-    opacity: Optional[np.ndarray] = None,
-    labels: Optional[Sequence[str]] = None,
-) -> tuple[plt.Figure, plt.Axes]:
-    """Creates a matrix of scatter plots by using the method
-    :meth:`scattercomp` on each pair of rows in the given data array.
+    """Creates scatterplots comparing the data of different categories.
+    This produces plots for each combination of rows in the given
+    ``data`` array.
+    The plots also contain a vertical and horizontal line indicating the
+    mean accuracy values of the classifiers. The line corresponding to
+    the lower mean is dashed.
 
     Args:
         data (np.ndarray): A two dimensional array, e.g. consisting of
@@ -437,9 +374,23 @@ def scattercomp_matrix(
             names of the categories or classifiers that are being
             compared. The length of this sequence has to match
             ``data.shape[0]``.
+        axes (plt.Axes | np.ndarray, optional): One or multiple axes in
+            a numpy array. The plots will be drawn on these axes.
+        max_cols (int, optional): If ``axes`` is not specified, this
+            integer is the number of columns in a figure to fill before
+            starting a new row of scatterplots. Defaults to 4.
+        draw_hist (bool, optional): If True, also draws a histogram
+            for each category. Defaults to False.
+        color (tuple[float, float, float], optional): Color of points in
+            the scatterplots.
+        color_dl (tuple[float, float, float], optional): Color of the
+            diagonal lines.
+        color_ml (tuple[float, float, float], optional): Color of the
+            lines for the mean values on each axis.
 
     Returns:
-        Pyplot figure and axes containing all plots.
+        Pyplot figure and axes containing all plots or None if ``axes``
+        is specified.
     """
     if data.ndim != 2:
         raise ValueError("Expected two dimensional data array, "
@@ -449,75 +400,84 @@ def scattercomp_matrix(
         raise ValueError("Given number of opacity values do not correspond to "
                          "data.shape[1]")
     if n_classifiers == 1:
-        return scattercomp(data, opacity=opacity, labels=labels)
+        if axes is not None:
+            if not isinstance(axes, plt.Axes):
+                raise ValueError(f"Expected a single axes, got {type(axes)}")
+            return _hist(data, axis=axes, labels=labels, color=color)
+        else:
+            fig, axs = plt.subplots(1, 1)
+            _hist(data, axis=axs, labels=labels, color=color)
+            return fig, axs
 
-    fig, axs = plt.subplots(n_classifiers, n_classifiers)
-    for i in range(n_classifiers):
-        for j in range(n_classifiers):
-            if i == j:
-                scattercomp(
-                    data[i],
-                    labels=labels[i],
-                    on_axis=axs[i, j],
-                )
-            else:
-                scattercomp(
-                    (data[i], data[j]),
-                    opacity=opacity,
-                    labels=(labels[i], labels[j]),
-                    on_axis=axs[i, j],
-                )
-    return fig, axs
-
-
-def scattercomp_combinations(
-    data: np.ndarray,
-    opacity: Optional[np.ndarray] = None,
-    labels: Optional[Sequence[str]] = None,
-) -> tuple[plt.Figure, plt.Axes]:
-    """Creates :meth:`scattercomp` plots of each combination of rows in
-    the given data array. This creates a sequence of plots that can also
-    be found in the upper triangle matrix returned by
-    :meth:`scattercomp_matrix`.
-
-    Args:
-        data (np.ndarray): A two dimensional array, e.g. consisting of
-            accuracy values from different classifiers.
-        opacity (np.ndarray, optional): Opacity values that are used to
-            set alpha color values to the points in the scatter plot.
-            The length of this array has to be the same as the size of
-            the second dimension in ``data``.
-        labels (Sequence[str], optional): A number of strings matching
-            names of the categories or classifiers that are being
-            compared. The length of this sequence has to match
-            ``data.shape[0]``.
-
-    Returns:
-        Pyplot figure and axes containing all plots.
-    """
-    if data.ndim != 2:
-        raise ValueError("Expected two dimensional data array, "
-                         f"got {data.ndim}")
-    n_classifiers, n_datasets = data.shape
-    if opacity is not None and len(opacity) != n_datasets:
-        raise ValueError("Given number of opacity values do not correspond to "
-                         "data.shape[1]")
-    if n_classifiers == 1:
-        return scattercomp(data, opacity=opacity, labels=labels)
-
-    cols = n_plots = int(n_classifiers * (n_classifiers-1) / 2)
-    rows = 1
-    if n_plots > 4:
-        cols = 4
-        rows = n_plots // 4 + 1 if n_plots % 4 != 0 else n_plots // 4
-    fig, axs = plt.subplots(rows, cols)
-    axs.reshape((1, cols))
-    for i in range(n_classifiers):
-        for j in range(i+1, n_classifiers):
-            scattercomp(
-                (data[i], data[j]),
+    if axes is None:
+        cols = n_plots = int(n_classifiers * (n_classifiers-1) / 2)
+        if draw_hist:
+            cols += n_classifiers
+            n_plots = cols
+        rows = 1
+        if n_plots > max_cols:
+            cols = max_cols
+            rows = n_plots // max_cols
+            if n_plots % max_cols != 0:
+                rows += 1
+        fig, axs = plt.subplots(rows, cols)
+        axs = axs.reshape((rows, cols))
+    else:
+        if n_classifiers == 2 and isinstance(axes, plt.Axes):
+            axs = np.ndarray([[axes]])
+        elif n_classifiers > 2 and isinstance(axes, plt.Axes):
+            raise ValueError("Expected an array of axes")
+        axs = axes
+    if draw_hist:
+        indices = combinations_with_replacement(range(n_classifiers), r=2)
+    else:
+        indices = combinations(range(n_classifiers), r=2)
+    i = j = 0
+    for ii, jj in indices:
+        if j == axs.shape[1]:
+            j = 0
+            i += 1
+        axs[i, j].axis('square')
+        axs[i, j].set_xlim([0, 1])
+        axs[i, j].xaxis.set_ticks(
+            ticks=[0.0, 0.2, 0.4, 0.6, 0.8, 1.0],
+            labels=["", "", "", "", "", ""],
+        )
+        axs[i, j].xaxis.set_ticks(
+            ticks=[0.1, 0.3, 0.5, 0.7, 0.9],
+            labels=["", "", "", "", ""],
+            minor=True,
+        )
+        axs[i, j].yaxis.set_ticks(
+            ticks=[0.0, 0.2, 0.4, 0.6, 0.8, 1.0],
+            labels=["", "", "", "", "", ""],
+        )
+        axs[i, j].yaxis.set_ticks(
+            ticks=[0.1, 0.3, 0.5, 0.7, 0.9],
+            labels=["", "", "", "", ""],
+            minor=True,
+        )
+        axs[i, j].set_ylim([0, 1])
+        axs[i, j].tick_params(which="both", direction="in")
+        if ii == jj:
+            _hist(
+                data[ii],
+                axis=axs[i, j],
+                label=labels[ii],
+                color=color,
+            )
+        else:
+            _scattercomp(
+                data[(ii, jj), :],
+                axis=axs[i, j],
                 opacity=opacity,
-                labels=(labels[i], labels[j]),
-                on_axis=axs[i, j],
+                labels=(labels[ii], labels[jj]),
+                color=color,
+                color_dl=color_dl,
+                color_ml=color_ml,
             )
+        j += 1
+    while j < axs.shape[1]:
+        axs[i, j].axis('off')
+        j += 1
     return fig, axs

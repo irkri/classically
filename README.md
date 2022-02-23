@@ -22,7 +22,7 @@ D          | 0.64 | 0.84 | 0.60 | 0.26 | 0.95 | 0.60 | 0.36 | 0.37 | 0.19 | 0.95
 E          | 0.37 | 0.68 | 0.47 | 0.18 | 0.88 | 0.37 | 0.27 | 0.25 | 0.24 | 0.79 | 0.25 | 0.83 | 0.36 | 0.64 |
 
 We load this table in a `numpy array` of shape `(5, 14)` and call the function
-`classic.critical_difference`. The resulting plot can be seen below.
+`classic.critical_difference_diagram`. The resulting plot can be seen below.
 ![critical difference diagram](example/cd_example.png)
 Markings on this number line represent the average ranks of one classifier based on his accuracy over all datasets. The lowest rank corresponds to the highest accuracy. Classifiers are connected by a horizontal line if they do not have a significant difference. This significance is based on post-hoc Wilcoxon signed rank tests for each pair of classifiers.
 

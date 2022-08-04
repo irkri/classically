@@ -480,4 +480,6 @@ def scatter_comparison(
     while j < axs.shape[1]:
         axs[i, j].axis('off')
         j += 1
-    return fig, axs
+    if axes is None:
+        return fig, axs
+    return None

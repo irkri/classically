@@ -33,7 +33,9 @@ def critical_difference_diagram(
     labels: Optional[Sequence[str]] = None,
     on_axis: Optional[plt.Axes] = None,
     alpha: float = 0.05,
-    color_cliques: Optional[tuple[float, float, float]] = None,
+    holm_bonferroni: bool = True,
+    color_cliques: Optional[tuple[float, float, float, float]] = None,
+    color_markings: Optional[tuple[float, float, float, float]] = None,
 ) -> Optional[tuple[plt.Figure, plt.Axes]]:
     """Draws and returns a figure of a critical difference diagram based
     on the given categorized and normalized values. This type of plot
@@ -47,14 +49,21 @@ def critical_difference_diagram(
             compared in this diagram, e.g. classifiers. The second
             dimension iterates over the values being used for the
             comparison, e.g. accuracy results.
-        alpha (float, optional): Significance level used for doing
-            pairwise Wilcoxon signed-rank tests. Defaults to 0.05.
         labels (Sequence[str], optional): The labels for categories of
             the data, e.g. the name of the classifiers used to create
             given accuracy results.
         on_axis (plt.Axes, optional): A matplotlib axis that the plot
             will be drawn on. If none is supplied, a new one will be
             created first and returned after finishing the diagram.
+        alpha (float, optional): Significance level used for doing
+            pairwise Wilcoxon signed-rank tests. Defaults to 0.05.
+        holm_bonferroni (bool, optional): Whether to use holm-bonferroni
+            correction on the wilcoxon signed rank tests. Defaults to
+            True.
+        color_cliques (tuple of 4 floats, optional): Color that will be
+            used to mark classifiers with non-significant differences.
+        color_markings (tuple of 4 floats, optional): Color for lines
+            marking the different classifiers.
 
     Returns:
         Pyplot figure and axis with the diagram if ``on_axis`` is
@@ -94,8 +103,10 @@ def critical_difference_diagram(
                 mode=mode,
             )[1]
     p_order = np.argsort(p_values)
-    holm_bonferroni = alpha / np.arange(p_values.shape[0], 0, -1)
-    significant = (p_values[p_order] <= holm_bonferroni)[p_order.argsort()]
+    alpha_ = np.full_like(p_values, alpha)
+    if holm_bonferroni:
+        alpha_ = alpha_ / np.arange(p_values.shape[0], 0, -1)
+    significant = (p_values[p_order] <= alpha_)[p_order.argsort()]
 
     # calculate average ranks of classifiers over all datasets
     avg_ranks = (n_classifiers - stats.rankdata(data, axis=0) + 1).mean(axis=1)
@@ -146,10 +157,13 @@ def critical_difference_diagram(
     label_offset = 0.01 * (highest_rank-lowest_rank)
     lower_marking = 0.6
     markings_vspace = 0.35 / half
-    markings_color = (0.15, 0.15, 0.15, 1.0)
+    color_markings = (
+        (0.15, 0.15, 0.15, 1.0) if color_markings is None else
+        color_markings
+    )
     cliques_color = (
-        (0.9, 0.5, 0.3) if color_cliques is None else color_cliques
-    ) + (0.9, )
+        (0.9, 0.5, 0.3, 0.9) if color_cliques is None else color_cliques
+    )
     first_clique_line = 0.9 + (len(cliques) + 3) / 100
     if len(cliques) >= 4:
         first_clique_line = 0.96
@@ -165,14 +179,14 @@ def critical_difference_diagram(
             x=avg_ranks[index],
             ymin=lower_marking + (half-i-1)*markings_vspace,
             ymax=1.0,
-            c=markings_color,
+            c=color_markings,
             lw=2.0,
         )
         ax.axhline(
             y=lower_marking + (half-i-1)*markings_vspace,
             xmin=(half-i-1) * label_xshift / (highest_rank-lowest_rank),
             xmax=(highest_rank-avg_ranks[index]) / (highest_rank-lowest_rank),
-            c=markings_color,
+            c=color_markings,
             lw=2.0,
         )
         ax.text(
@@ -198,14 +212,14 @@ def critical_difference_diagram(
             x=avg_ranks[index],
             ymin=lower_marking + i*markings_vspace,
             ymax=1.0,
-            c=markings_color,
+            c=color_markings,
             lw=2.0,
         )
         ax.axhline(
             y=lower_marking + i*markings_vspace,
             xmin=(highest_rank-avg_ranks[index]) / (highest_rank-lowest_rank),
             xmax=1.0 - i * label_xshift / (highest_rank-lowest_rank),
-            c=markings_color,
+            c=color_markings,
             lw=2.0,
         )
         ax.text(
@@ -253,7 +267,7 @@ def _hist(
     data: np.ndarray,
     axis: plt.Axes,
     label: str,
-    color: Optional[tuple[float, float, float]] = None,
+    color: Optional[tuple[float, float, float]],
 ) -> None:
     weights = np.ones_like(data)
     weights /= data.shape[0]
@@ -261,7 +275,7 @@ def _hist(
         data,
         bins=[0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0],
         weights=weights,
-        color=(0.9, 0.5, 0.3) if color is None else color,
+        color=color,
     )
     axis.text(x=0.02, y=0.98, s=label, size="large", ha="left", va="top")
 
@@ -270,14 +284,14 @@ def _scattercomp(
     data: np.ndarray,
     axis: plt.Axes,
     labels: tuple[str, str],
+    color: tuple[float, float, float],
+    color_ml: tuple[float, float, float],
+    color_dl: tuple[float, float, float],
     opacity: Optional[np.ndarray] = None,
-    color: Optional[tuple[float, float, float]] = None,
-    color_ml: Optional[tuple[float, float, float]] = None,
-    color_dl: Optional[tuple[float, float, float]] = None,
 ) -> None:
     n_datasets = data[0].shape[0]
     colors = np.zeros((n_datasets, 4))
-    colors[:, :3] = (0.9, 0.5, 0.3) if color is None else color
+    colors[:, :3] = color
     colors[:, 3] = opacity if opacity is not None else 1.0
 
     # draw scatterplot
@@ -287,14 +301,14 @@ def _scattercomp(
     axis.plot(
         [0, 1], [0, 1],
         transform=axis.transAxes,
-        color=(0.2, 0.1, 0.7) if color_dl is None else color_dl,
+        color=color_dl,
         ls="--",
     )
     axis.plot(
         [0.05, 1], [0, 0.95],
         [0, 0.95], [0.05, 1],
         transform=axis.transAxes,
-        color=((0.2, 0.1, 0.7) if color_dl is None else color_dl) + (0.3, ),
+        color=color_dl+(0.3, ),
         ls="--",
     )
 
@@ -307,16 +321,14 @@ def _scattercomp(
         mean2,
         xmin=0,
         xmax=mean2,
-        color=((0.2, 0.4, 0.3) if color_ml is None else color_ml)
-              + (opacity2, ),
+        color=color_ml+(opacity2, ),
         ls=ls2,
     )
     axis.axvline(
         mean1,
         ymin=0,
         ymax=mean1,
-        color=((0.2, 0.4, 0.3) if color_ml is None else color_ml)
-              + (opacity1, ),
+        color=color_ml+(opacity1, ),
         ls=ls1,
     )
     axis.text(0.02, 0.98, s=labels[0], size="large", ha="left", va="top")
@@ -399,6 +411,7 @@ def scatter_comparison(
     if opacity is not None and len(opacity) != n_datasets:
         raise ValueError("Given number of opacity values do not correspond to "
                          "data.shape[1]")
+    color = color if color is not None else (0.9, 0.5, 0.3)
     if n_classifiers == 1:
         if axes is not None:
             if not isinstance(axes, plt.Axes):
@@ -409,6 +422,8 @@ def scatter_comparison(
             _hist(data, axis=axs, labels=labels, color=color)
             return fig, axs
 
+    color_dl = color_dl if color_dl is not None else (0.2, 0.1, 0.7)
+    color_ml = color_ml if color_ml is not None else (0.2, 0.4, 0.3)
     if axes is None:
         cols = n_plots = int(n_classifiers * (n_classifiers-1) / 2)
         if draw_hist:

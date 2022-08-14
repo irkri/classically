@@ -36,6 +36,6 @@ the function `classic.scatter_comparison.`
 ![scatter comparison](example/scatter_example.png)
 Points above the diagonal line represent datasets that are better classified by the method in the upper left corner. A horizontal and vertical line indicates the mean accuracy of the corresponding classifier. A solid line marks the higher mean.
 
-A choice can now be easily made for the comparison of classifier A and B as well as B and D. We also see that A is better than D in mean accuracy but that D has a big advantage on one dataset that is well beyond the diagonal line for five percent difference.
+A choice can now be easily made for the comparison of classifier A and B as well as B and D. We also see that D is better than A in mean accuracy but that A has a big advantage on one dataset that is well beyond the diagonal line for five percent difference.
 
 The datasets could now be further analyzed by, for example, looking at the number of training and test instances. An option for setting the opacity value of points in the scatterplots accordingly is available.

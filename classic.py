@@ -1,19 +1,79 @@
 from itertools import combinations, combinations_with_replacement
 from typing import Union, Optional, Sequence, overload
 
-import networkx
+import networkx as nx
 import numpy as np
 import scipy.stats as stats
 from matplotlib import pyplot as plt
 from matplotlib import ticker
 
 
+def critical_difference_graph(
+    data: np.ndarray,
+    labels: Optional[Sequence[str]] = None,
+    alpha: float = 0.05,
+    holm_bonferroni: bool = True,
+) -> nx.Graph:
+    if data.ndim != 2:
+        raise ValueError(
+            f"Expected numpy array with two dimensions, got {data.ndim}"
+        )
+    n_classifiers = data.shape[0]
+    if labels is None:
+        labels = [f"Set {i+1}" for i in range(n_classifiers)]
+    if len(labels) != n_classifiers:
+        raise ValueError(
+            "Number of labels must equal the number of classifiers to compare"
+        )
+
+    # paired Wilcoxon test for every (distinct) pair of classifiers
+    p_values = np.zeros(
+        shape=(int(n_classifiers * (n_classifiers-1) / 2), ),
+        dtype=np.float32,
+    )
+    c = -1
+    for i in range(n_classifiers-1):
+        for j in range(i+1, n_classifiers):
+            c += 1
+            mode = "exact"
+            if (nzeros := np.sum((data[i] - data[j]) == 0)) >= 1:
+                if nzeros == len(data[i, :]):
+                    p_values[c] = 1.0
+                    continue
+                mode = "approx"
+            p_values[c] = stats.wilcoxon(
+                data[i, :],
+                data[j, :],
+                zero_method='pratt',
+                mode=mode,
+            )[1]
+    p_order = np.argsort(p_values)
+    alpha_ = np.full_like(p_values, alpha)
+    if holm_bonferroni:
+        alpha_ = alpha_ / np.arange(p_values.shape[0], 0, -1)
+    significant = (p_values[p_order] <= alpha_)[p_order.argsort()]
+
+    # get cliques of significant test results by building an adjacency
+    # matrix and using the networkx package
+    adjacency_matrix = np.zeros((n_classifiers, n_classifiers))
+    indexing = np.array(np.triu_indices(n_classifiers, k=1))
+    for index in np.where(~significant):
+        i, j = indexing[:, index]
+        adjacency_matrix[i, j] = p_values[index]
+    G = nx.Graph(adjacency_matrix)
+    G = nx.relabel_nodes(G, {i: l for i, l in enumerate(labels)})
+    return G
+
+
 @overload
 def critical_difference_diagram(
     data: np.ndarray,
     labels: Optional[Sequence[str]] = None,
-    on_axis: None = None,
     alpha: float = 0.05,
+    holm_bonferroni: bool = True,
+    on_axis: None = None,
+    color_cliques: Optional[tuple[float, float, float, float]] = None,
+    color_markings: Optional[tuple[float, float, float, float]] = None,
 ) -> tuple[plt.Figure, plt.Axes]:
     ...
 
@@ -22,8 +82,11 @@ def critical_difference_diagram(
 def critical_difference_diagram(
     data: np.ndarray,
     labels: Optional[Sequence[str]] = None,
-    on_axis: plt.Axes = None,
     alpha: float = 0.05,
+    holm_bonferroni: bool = True,
+    on_axis: plt.Axes = None,
+    color_cliques: Optional[tuple[float, float, float, float]] = None,
+    color_markings: Optional[tuple[float, float, float, float]] = None,
 ) -> None:
     ...
 
@@ -31,9 +94,9 @@ def critical_difference_diagram(
 def critical_difference_diagram(
     data: np.ndarray,
     labels: Optional[Sequence[str]] = None,
-    on_axis: Optional[plt.Axes] = None,
     alpha: float = 0.05,
     holm_bonferroni: bool = True,
+    on_axis: Optional[plt.Axes] = None,
     color_cliques: Optional[tuple[float, float, float, float]] = None,
     color_markings: Optional[tuple[float, float, float, float]] = None,
 ) -> Optional[tuple[plt.Figure, plt.Axes]]:
@@ -76,54 +139,20 @@ def critical_difference_diagram(
     n_classifiers = data.shape[0]
     if labels is None:
         labels = [f"Set {i+1}" for i in range(n_classifiers)]
-    if data.shape[0] != len(labels):
+    if len(labels) != n_classifiers:
         raise ValueError(
             "Number of labels must equal the number of classifiers to compare"
         )
 
-    # paired Wilcoxon test for every (distinct) pair of classifiers
-    p_values = np.zeros(
-        shape=(int(n_classifiers * (n_classifiers-1) / 2), ),
-        dtype=np.float32,
-    )
-    c = -1
-    for i in range(n_classifiers-1):
-        for j in range(i+1, n_classifiers):
-            c += 1
-            mode = "exact"
-            if (nzeros := np.sum((data[i] - data[j]) == 0)) >= 1:
-                if nzeros == len(data[i, :]):
-                    p_values[c] = 1.0
-                    continue
-                mode = "approx"
-            p_values[c] = stats.wilcoxon(
-                data[i, :],
-                data[j, :],
-                zero_method='pratt',
-                mode=mode,
-            )[1]
-    p_order = np.argsort(p_values)
-    alpha_ = np.full_like(p_values, alpha)
-    if holm_bonferroni:
-        alpha_ = alpha_ / np.arange(p_values.shape[0], 0, -1)
-    significant = (p_values[p_order] <= alpha_)[p_order.argsort()]
+    G = critical_difference_graph(data, labels, alpha, holm_bonferroni)
+    cliques = [
+        list(map(lambda l: labels.index(l), clq))
+        for clq in nx.find_cliques(G) if len(clq) > 1
+    ]
 
     # calculate average ranks of classifiers over all datasets
     avg_ranks = (n_classifiers - stats.rankdata(data, axis=0) + 1).mean(axis=1)
     avg_ranks_order = avg_ranks.argsort()[::-1]
-
-    # get cliques of significant test results by building an adjacency
-    # matrix and using the networkx package
-    adjacency_matrix = np.zeros((n_classifiers, n_classifiers))
-    indexing = np.array(np.triu_indices(n_classifiers, k=1))
-    for index in np.where(~significant):
-        i, j = indexing[:, index]
-        adjacency_matrix[i, j] = 1
-    cliques = [
-        clique for clique in networkx.find_cliques(
-            networkx.Graph(adjacency_matrix)
-        ) if len(clique) > 1
-    ]
 
     # initialize and configure plot
     width = 6 + 0.3 * max(map(len, labels))
@@ -331,8 +360,8 @@ def _scattercomp(
         color=color_ml+(opacity1, ),
         ls=ls1,
     )
-    axis.text(0.02, 0.98, s=labels[0], size="large", ha="left", va="top")
-    axis.text(0.98, 0.02, s=labels[1], size="large", ha="right", va="bottom")
+    axis.text(0.02, 0.98, s=labels[1], size="large", ha="left", va="top")
+    axis.text(0.98, 0.02, s=labels[0], size="large", ha="right", va="bottom")
 
 
 @overload

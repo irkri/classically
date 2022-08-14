@@ -371,6 +371,10 @@ def scatter_comparison(
     labels: Optional[Union[str, Sequence[str]]] = None,
     axes: None = None,
     max_cols: int = 4,
+    draw_hist: bool = False,
+    color: Optional[tuple[float, float, float]] = None,
+    color_ml: Optional[tuple[float, float, float]] = None,
+    color_dl: Optional[tuple[float, float, float]] = None,
 ) -> tuple[plt.Figure, plt.Axes]:
     ...
 
@@ -382,6 +386,10 @@ def scatter_comparison(
     labels: Optional[Union[str, Sequence[str]]] = None,
     axes: Union[plt.Axes, np.ndarray] = None,
     max_cols: int = 4,
+    draw_hist: bool = False,
+    color: Optional[tuple[float, float, float]] = None,
+    color_ml: Optional[tuple[float, float, float]] = None,
+    color_dl: Optional[tuple[float, float, float]] = None,
 ) -> None:
     ...
 

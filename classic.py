@@ -14,6 +14,31 @@ def critical_difference_graph(
     alpha: float = 0.05,
     holm_bonferroni: bool = True,
 ) -> nx.Graph:
+    """Creates and returns a graph needed by the critical difference
+    diagram. Nodes in the graph are different categories or classifiers
+    and two nodes are connected if they have a significant difference
+    based on the values supplied. This is based on pairwise Wilcoxon
+    signed rank tests with Holm-Bonferroni correction. The edge weights
+    are set to the p-values of the tests.
+
+    Args:
+        data (np.ndarray): A numpy array with two dimensions. The first
+            dimension iterates over different categories that are
+            compared in this diagram, e.g. classifiers. The second
+            dimension iterates over the values being used for the
+            comparison, e.g. accuracy results.
+        labels (Sequence[str], optional): The labels for categories of
+            the data, e.g. the name of the classifiers used to create
+            given accuracy results.
+        alpha (float, optional): Significance level used for doing
+            pairwise Wilcoxon signed rank tests. Defaults to 0.05.
+        holm_bonferroni (bool, optional): Whether to use holm-bonferroni
+            correction on the Wilcoxon signed rank tests. Defaults to
+            True.
+
+    Returns:
+        A graph built with the package ``networkx``.
+    """
     if data.ndim != 2:
         raise ValueError(
             f"Expected numpy array with two dimensions, got {data.ndim}"
@@ -71,7 +96,7 @@ def critical_difference_diagram(
     labels: Optional[Sequence[str]] = None,
     alpha: float = 0.05,
     holm_bonferroni: bool = True,
-    on_axis: None = None,
+    axis: None = None,
     color_cliques: Optional[tuple[float, float, float, float]] = None,
     color_markings: Optional[tuple[float, float, float, float]] = None,
 ) -> tuple[plt.Figure, plt.Axes]:
@@ -84,7 +109,7 @@ def critical_difference_diagram(
     labels: Optional[Sequence[str]] = None,
     alpha: float = 0.05,
     holm_bonferroni: bool = True,
-    on_axis: plt.Axes = None,
+    axis: plt.Axes = None,
     color_cliques: Optional[tuple[float, float, float, float]] = None,
     color_markings: Optional[tuple[float, float, float, float]] = None,
 ) -> None:
@@ -96,13 +121,13 @@ def critical_difference_diagram(
     labels: Optional[Sequence[str]] = None,
     alpha: float = 0.05,
     holm_bonferroni: bool = True,
-    on_axis: Optional[plt.Axes] = None,
+    axis: Optional[plt.Axes] = None,
     color_cliques: Optional[tuple[float, float, float, float]] = None,
     color_markings: Optional[tuple[float, float, float, float]] = None,
 ) -> Optional[tuple[plt.Figure, plt.Axes]]:
-    """Draws and returns a figure of a critical difference diagram based
-    on the given categorized and normalized values. This type of plot
-    was described in the paper
+    """Draws a critical difference diagram based on the given
+    categorized values between 0 and 1. This type of plot was described
+    in the paper
     'Statistical Comparison of Classifiers over Multiple Data Sets'
     by Janez Demsar, 2006.
 
@@ -115,21 +140,21 @@ def critical_difference_diagram(
         labels (Sequence[str], optional): The labels for categories of
             the data, e.g. the name of the classifiers used to create
             given accuracy results.
-        on_axis (plt.Axes, optional): A matplotlib axis that the plot
+        alpha (float, optional): Significance level used for doing
+            pairwise Wilcoxon signed rank tests. Defaults to 0.05.
+        holm_bonferroni (bool, optional): Whether to use holm-bonferroni
+            correction on the Wilcoxon signed rank tests. Defaults to
+            True.
+        axis (plt.Axes, optional): A matplotlib axis that the plot
             will be drawn on. If none is supplied, a new one will be
             created first and returned after finishing the diagram.
-        alpha (float, optional): Significance level used for doing
-            pairwise Wilcoxon signed-rank tests. Defaults to 0.05.
-        holm_bonferroni (bool, optional): Whether to use holm-bonferroni
-            correction on the wilcoxon signed rank tests. Defaults to
-            True.
         color_cliques (tuple of 4 floats, optional): Color that will be
             used to mark classifiers with non-significant differences.
         color_markings (tuple of 4 floats, optional): Color for lines
             marking the different classifiers.
 
     Returns:
-        Pyplot figure and axis with the diagram if ``on_axis`` is
+        Pyplot figure and axis with the diagram if ``axis`` is
         supplied, else None.
     """
     if data.ndim != 2:
@@ -158,8 +183,8 @@ def critical_difference_diagram(
     width = 6 + 0.3 * max(map(len, labels))
     height = 1.0 + n_classifiers * 0.1
     fig, ax = plt.subplots(1, 1, figsize=(width, height))
-    if on_axis is not None:
-        ax = on_axis
+    if axis is not None:
+        ax = axis
 
     lowest_rank = min(1, int(np.floor(avg_ranks.min())))
     highest_rank = max(len(avg_ranks), int(np.ceil(avg_ranks.max())))
@@ -287,7 +312,7 @@ def critical_difference_diagram(
         )
         clique_line_y -= clique_line_vspace
 
-    if on_axis is None:
+    if axis is None:
         return fig, ax
     return None
 

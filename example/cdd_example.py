@@ -16,5 +16,5 @@ fig, ax = critical_difference_diagram(
     labels=["A", "B", "C", "D", "E"],
 )
 
-plt.savefig("cd_example.png", dpi=256)
+plt.savefig("cdd_example.png", dpi=256)
 plt.show()

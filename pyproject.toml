@@ -1,7 +1,7 @@
 [tool.poetry]
 name = "classic"
-version = "0.1.0"
-description = "Classification Comparison"
+version = "1.0.0"
+description = "Classifier Comparison and Evaluation Tools"
 authors = ["alienkrieg <alienkrieg@gmail.com>"]
 
 [tool.poetry.dependencies]

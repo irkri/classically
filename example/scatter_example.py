@@ -12,7 +12,7 @@ accuracy = np.array([
 ]) / 100.0
 
 fig, ax = scatter_comparison(
-    accuracy[(0, 1, 3), :],
+    accuracy[np.array([0, 1, 3]), :],
     labels=["A", "B", "D"],
 )
 

@@ -3,6 +3,12 @@ Classifier Comparison and Feature Analysis Tools in Python
 
 A python package for the evaluation of classification performance.
 
+## Installation
+
+__Classically__ is published on PyPi so you can install it with `pip`.
+
+    >>> python -m pip install classically
+
 ## Applications
 
 ### Critical Difference Diagram

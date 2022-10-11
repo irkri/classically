@@ -1,12 +1,12 @@
 [tool.poetry]
-name = "classic"
+name = "classically"
 version = "1.0.0"
-description = "Classifier Comparison and Evaluation Tools"
+description = "Classifier Comparison and Feature Analysis Tools in Python"
 authors = ["alienkrieg <alienkrieg@gmail.com>"]
 keywords = ["machine learning", "classification", "analysis"]
 readme = "README.md"
 license = "MIT"
-repository = "https://github.com/alienkrieg/classic"
+repository = "https://github.com/alienkrieg/classically"
 
 [tool.poetry.dependencies]
 python = ">=3.9, <3.10"

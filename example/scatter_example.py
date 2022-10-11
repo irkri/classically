@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-from classic import scatter_comparison
+from classically import scatter_comparison
 
 accuracy = np.array([
     [60, 81, 62, 19, 93, 54, 53, 41, 21, 97, 32, 82, 38, 75],

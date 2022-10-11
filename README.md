@@ -1,7 +1,7 @@
-# CLASSIC
-Classifier Comparison and Evaluation Tools
+# CLASSICALLY
+Classifier Comparison and Feature Analysis Tools in Python
 
-A python package for the analysis of classification performance.
+A python package for the evaluation of classification performance.
 
 ## Applications
 
@@ -9,7 +9,7 @@ A python package for the analysis of classification performance.
 
 A main application is the comparison of categorized paired metric data, e.g. accuracy results of
 different classification methods in machine learning.
-Therefore __Classic__ implements the *critical difference diagram* (described in [[1]](#1)).
+Therefore __Classically__ implements the *critical difference diagram* (described in [[1]](#1)).
 
 <a id="2"><u>Example</u></a>
 
@@ -26,7 +26,7 @@ D          | 0.64 | 0.84 | 0.60 | 0.26 | 0.95 | 0.60 | 0.36 | 0.37 | 0.19 | 0.95
 E          | 0.37 | 0.68 | 0.47 | 0.18 | 0.88 | 0.37 | 0.27 | 0.25 | 0.24 | 0.79 | 0.25 | 0.83 | 0.36 | 0.64 |
 
 We load this table in a `numpy array` of shape `(5, 14)` and call the function
-`classic.critical_difference_diagram`. The resulting plot can be seen below.
+`classically.critical_difference_diagram`. The resulting plot can be seen below.
 
 ![critical difference diagram](example/cdd_example.png)
 
@@ -44,12 +44,12 @@ A, then we should consider choosing A as the better classifier.
 ### Scatter Matrix
 
 For an in-depth comparison of the classifiers on single datasets a special type of scatter matrix
-that is designed to compare multiple categories of data can be found in __Classic__.
+that is designed to compare multiple categories of data can be found in __Classically__.
 
 <u>Example</u>
 
 For a more elaborate decision in the [example above](#2) we could directly compare the best three
-classifiers A, B and D using the function `classic.scatter_comparison.`
+classifiers A, B and D using the function `classically.scatter_comparison.`
 
 ![scatter comparison](example/scatter_example.png)
 
@@ -67,13 +67,13 @@ is available.
 
 Evaluating the importance of features in data can be very helpful in reducing the dimensionality of
 the feature space. While principal component analysis transforms original features into new ones,
-it can also be used to creating a ranking of those features. __Classic__ is able to compute the
+it can also be used to creating a ranking of those features. __Classically__ is able to compute the
 feature score for a given dataset.
 
 <u>Example</u>
 
 We can analyze the importance of the four features in the well-known IRIS dataset by using the
-method `classic.plot_feature_score`.
+method `classically.plot_feature_score`.
 
 <p align="center"> <img width=512 src="example/score_example.png"> </align>
 

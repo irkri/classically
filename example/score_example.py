@@ -4,8 +4,8 @@ from sklearn import datasets
 from sklearn.linear_model import RidgeClassifierCV
 from sklearn.model_selection import train_test_split
 
-from classic import plot_feature_score
-from classic.score import score_features
+from classically import plot_feature_score
+from classically.score import score_features
 
 np.random.seed(111)
 

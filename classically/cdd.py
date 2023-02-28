@@ -183,13 +183,14 @@ def critical_difference_diagram(
 
     # initialize and configure plot
     width = 6 + 0.3 * max(map(len, labels))
-    height = 1.0 + n_classifiers * 0.1
+    height = 1.0 + n_classifiers * 0.05
     fig, ax = plt.subplots(1, 1, figsize=(width, height))
     if axis is not None:
         ax = axis
 
-    lowest_rank = min(1, int(np.floor(avg_ranks.min())))
-    highest_rank = max(len(avg_ranks), int(np.ceil(avg_ranks.max())))
+    min_rank = int(np.floor(avg_ranks.min()))
+    max_rank = int(np.ceil(avg_ranks.max()))
+    rank_span = max_rank - min_rank
 
     ax.xaxis.set_major_locator(ticker.MultipleLocator(1))
     ax.xaxis.set_minor_locator(ticker.MultipleLocator(0.5))
@@ -201,61 +202,51 @@ def critical_difference_diagram(
     ax.xaxis.set_ticks_position('top')
     ax.tick_params(which='major', width=2.5, length=5, labelsize=12)
     ax.tick_params(which='minor', width=2.0, length=3, labelsize=12)
-    ax.set_xlim(highest_rank, lowest_rank)
+    ax.set_xlim(max_rank, min_rank)
     ax.set_ylim(0.0, 1.0)
 
-    fig.subplots_adjust(bottom=-0.6, top=0.7)
-
-    # visual configurations
     half = int(np.ceil(n_classifiers / 2))
-    label_xshift = 0.05 * (highest_rank-lowest_rank)
-    rank_label_xshift = 0.02 * (highest_rank-lowest_rank)
-    label_offset = 0.01 * (highest_rank-lowest_rank)
-    lower_marking = 0.6
-    markings_vspace = 0.35 / half
+
+    # visual configurations for markings
+    label_left = avg_ranks[avg_ranks_order[0]] + .06*rank_span
+    label_right = avg_ranks[avg_ranks_order[-1]] - .06*rank_span
+    label_hshift = .03*rank_span
+    marking_vspacing = 1 / (half + 1)
+
     color_markings = (
-        (0.15, 0.15, 0.15, 1.0) if color_markings is None else
-        color_markings
+        (.15, .15, .15, 1.) if color_markings is None else color_markings
     )
-    cliques_color = (
-        (0.9, 0.5, 0.3, 0.9) if color_cliques is None else color_cliques
-    )
-    first_clique_line = 0.9 + (len(cliques) + 3) / 100
-    if len(cliques) >= 4:
-        first_clique_line = 0.96
-    clique_line_vspace = (
-        1 - (lower_marking + (half-1) * markings_vspace) - 0.001
-    )
-    if len(cliques) > 0:
-        clique_line_vspace /= len(cliques)
 
     # draw left branching markings
     for i, index in enumerate(avg_ranks_order[:half]):
-        ax.axvline(
-            x=avg_ranks[index],
-            ymin=lower_marking + (half-i-1)*markings_vspace,
-            ymax=1.0,
+        rank = avg_ranks[index]
+        ax.plot(
+            (rank, rank),
+            ((half-i-1)*marking_vspacing, 1.0),
+            "-",
             c=color_markings,
             lw=2.0,
+            clip_on=False,
         )
-        ax.axhline(
-            y=lower_marking + (half-i-1)*markings_vspace,
-            xmin=(half-i-1) * label_xshift / (highest_rank-lowest_rank),
-            xmax=(highest_rank-avg_ranks[index]) / (highest_rank-lowest_rank),
+        ax.plot(
+            (label_left + i * label_hshift, rank),
+            ((half-i-1)*marking_vspacing, (half-i-1)*marking_vspacing),
+            "-",
             c=color_markings,
             lw=2.0,
+            clip_on=False,
         )
         ax.text(
-            x=highest_rank - rank_label_xshift - (half-i-1)*label_xshift,
-            y=lower_marking + (half-i-1)*markings_vspace,
+            x=label_left + i * label_hshift,
+            y=(half-i-1) * marking_vspacing,
             s=f"{avg_ranks[index]:.2f}",
             ha="left",
             va="bottom",
             size=8,
         )
         ax.text(
-            x=highest_rank - (half-i-1)*label_xshift + label_offset,
-            y=lower_marking + (half-i-1)*markings_vspace,
+            x=label_left + i * label_hshift,
+            y=(half-i-1) * marking_vspacing,
             s=f"{labels[index]}",
             ha="right",
             va="center",
@@ -264,55 +255,73 @@ def critical_difference_diagram(
 
     # draw right branching markings
     for i, index in enumerate(avg_ranks_order[half:]):
-        ax.axvline(
-            x=avg_ranks[index],
-            ymin=lower_marking + i*markings_vspace,
-            ymax=1.0,
+        j = half-i
+        rank = avg_ranks[index]
+        ax.plot(
+            (rank, rank),
+            (i*marking_vspacing, 1.0),
+            "-",
             c=color_markings,
             lw=2.0,
+            clip_on=False,
         )
-        ax.axhline(
-            y=lower_marking + i*markings_vspace,
-            xmin=(highest_rank-avg_ranks[index]) / (highest_rank-lowest_rank),
-            xmax=1.0 - i * label_xshift / (highest_rank-lowest_rank),
+        ax.plot(
+            (label_right - j * label_hshift, rank),
+            (i*marking_vspacing, i*marking_vspacing),
+            "-",
             c=color_markings,
             lw=2.0,
+            clip_on=False,
         )
         ax.text(
-            x=lowest_rank + rank_label_xshift + i*label_xshift,
-            y=lower_marking + i*markings_vspace,
-            s=f"{avg_ranks[index]:.2f}",
+            x=label_right - j * label_hshift,
+            y=i * marking_vspacing,
+            s=f"{rank:.2f}",
             ha="right",
             va="bottom",
             size=8,
         )
         ax.text(
-            x=lowest_rank + i*label_xshift - label_offset,
-            y=lower_marking + i*markings_vspace,
+            x=label_right - j * label_hshift,
+            y=i * marking_vspacing,
             s=f"{labels[index]}",
             ha="left",
             va="center",
             size=14,
         )
 
+    # visual configurations for cliques
+    color_cliques = (
+        (.9, .5, .3, .9) if color_cliques is None else color_cliques
+    )
+
+    first_clique_line = 0.9 + (len(cliques)) / 100
+    if len(cliques) >= 4:
+        first_clique_line = 0.95
+    clique_line_vspace = 1. - ((half - 1) * marking_vspacing)
+    if len(cliques) > 0:
+        clique_line_vspace /= len(cliques)
+
     # draw the cliques, i.e. connect classifiers that don't have a
     # significant difference
     clique_line_y = first_clique_line
     for clique in cliques:
         xmin = (
-            highest_rank - avg_ranks[max(clique, key=lambda i: avg_ranks[i])]
-        ) / (highest_rank - lowest_rank)
+            max_rank - avg_ranks[max(clique, key=lambda i: avg_ranks[i])]
+        ) / (max_rank - min_rank)
         xmax = (
-            highest_rank - avg_ranks[min(clique, key=lambda i: avg_ranks[i])]
-        ) / (highest_rank - lowest_rank)
+            max_rank - avg_ranks[min(clique, key=lambda i: avg_ranks[i])]
+        ) / (max_rank - min_rank)
         ax.axhline(
             y=clique_line_y,
             xmin=xmin,
             xmax=xmax,
-            color=cliques_color,
+            color=color_cliques,
             linewidth=4.0,
         )
         clique_line_y -= clique_line_vspace
+
+    fig.subplots_adjust(top=.75)
 
     if axis is None:
         return fig, ax

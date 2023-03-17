@@ -28,14 +28,18 @@ def _scattercomp(
     data: np.ndarray,
     axis: Axes,
     labels: tuple[str, str],
-    color: tuple[float, float, float],
-    color_ml: tuple[float, float, float],
+    color_points: tuple[
+        tuple[float, float, float], tuple[float, float, float]
+    ],
+    color_default: tuple[float, float, float],
     color_dl: tuple[float, float, float],
     opacity: Optional[np.ndarray] = None,
 ) -> None:
-    n_datasets = data[0].shape[0]
+    n_datasets = data.shape[1]
     colors = np.zeros((n_datasets, 4))
-    colors[:, :3] = color
+    colors[data[0] > data[1], :3] = color_points[0]
+    colors[data[0] < data[1], :3] = color_points[1]
+    colors[data[0] == data[1], :3] = color_default
     colors[:, 3] = opacity if opacity is not None else 1.0
 
     # draw scatterplot
@@ -65,15 +69,29 @@ def _scattercomp(
         mean2,
         xmin=0,
         xmax=mean2,
-        color=color_ml+(opacity2, ),
+        color=color_points[1]+(opacity2, ),
         ls=ls2,
     )
     axis.axvline(
         mean1,
         ymin=0,
         ymax=mean1,
-        color=color_ml+(opacity1, ),
+        color=color_points[0]+(opacity1, ),
         ls=ls1,
+    )
+    axis.axhline(
+        0,
+        xmin=0,
+        xmax=1,
+        color=color_points[0]+(0.5, ),
+        lw=4,
+    )
+    axis.axvline(
+        0,
+        ymin=0,
+        ymax=1,
+        color=color_points[1]+(0.5, ),
+        lw=4,
     )
     axis.text(0.02, 0.98, s=labels[1], size="large", ha="left", va="top")
     axis.text(0.98, 0.02, s=labels[0], size="large", ha="right", va="bottom")
@@ -87,8 +105,10 @@ def scatter_comparison(
     axes: None = ...,
     max_cols: int = ...,
     draw_hist: bool = ...,
-    color: Optional[tuple[float, float, float]] = ...,
-    color_ml: Optional[tuple[float, float, float]] = ...,
+    color_points: Optional[
+        tuple[tuple[float, float, float], tuple[float, float, float]]
+    ] = ...,
+    color_hist: Optional[tuple[float, float, float]] = ...,
     color_dl: Optional[tuple[float, float, float]] = ...,
 ) -> tuple[Figure, Axes]:
     ...
@@ -102,8 +122,10 @@ def scatter_comparison(
     axes: Union[Axes, np.ndarray] = ...,
     max_cols: int = ...,
     draw_hist: bool = ...,
-    color: Optional[tuple[float, float, float]] = ...,
-    color_ml: Optional[tuple[float, float, float]] = ...,
+    color_points: Optional[
+        tuple[tuple[float, float, float], tuple[float, float, float]]
+    ] = ...,
+    color_hist: Optional[tuple[float, float, float]] = ...,
     color_dl: Optional[tuple[float, float, float]] = ...,
 ) -> None:
     ...
@@ -116,8 +138,10 @@ def scatter_comparison(
     axes: Optional[Union[Axes, np.ndarray]] = None,
     max_cols: int = 4,
     draw_hist: bool = False,
-    color: Optional[tuple[float, float, float]] = None,
-    color_ml: Optional[tuple[float, float, float]] = None,
+    color_points: Optional[
+        tuple[tuple[float, float, float], tuple[float, float, float]]
+    ] = None,
+    color_hist: Optional[tuple[float, float, float]] = None,
     color_dl: Optional[tuple[float, float, float]] = None,
 ) -> Optional[tuple[Figure, Union[Axes, np.ndarray]]]:
     """Creates scatterplots comparing the data of different categories.
@@ -145,12 +169,15 @@ def scatter_comparison(
             starting a new row of scatterplots. Defaults to 4.
         draw_hist (bool, optional): If True, also draws a histogram
             for each category. Defaults to False.
-        color (tuple[float, float, float], optional): Color of points in
-            the scatterplots.
-        color_dl (tuple[float, float, float], optional): Color of the
-            diagonal lines.
-        color_ml (tuple[float, float, float], optional): Color of the
-            lines for the mean values on each axis.
+        color_points (two 3-tuples of floats, optional): Colors of
+            points in the scatterplots. The first color is used for
+            points below the diagonal line, the second for points above.
+            Points exactly on the diagonal use `color_hist`. The colors
+            are also used for the lines marking the mean values.
+        color_hist (3-tuple of floats, optional): Color of the bars in
+            histograms.
+        color_dl (3-tuple of floats, optional): Color of the diagonal
+            lines.
 
     Returns:
         Pyplot figure and axes containing all plots or None if ``axes``
@@ -168,7 +195,10 @@ def scatter_comparison(
         raise ValueError(f"length of 'labels' ({len(labels)}) does not match"
                          f" data shape; should be {n_classifiers}")
 
-    color = color if color is not None else (0.9, 0.5, 0.3)
+    color_hist = color_hist if color_hist is not None else (0.7, 0.7, 0.1)
+    color_points = color_points if color_points is not None else (
+        (0.55, 0.1, 0.1), (0.1, 0.55, 0.1)
+    )
     labels = labels if labels is not None else (
         [f"{i+1}" for i in range(n_classifiers)]
     )
@@ -176,14 +206,13 @@ def scatter_comparison(
         if axes is not None:
             if not isinstance(axes, Axes):
                 raise ValueError(f"Expected a single axes, got {type(axes)}")
-            return _hist(data, axis=axes, label=labels[0], color=color)
+            return _hist(data, axis=axes, label=labels[0], color=color_hist)
         else:
             fig, axs = plt.subplots(1, 1)
-            _hist(data, axis=axs, label=labels[0], color=color)
+            _hist(data, axis=axs, label=labels[0], color=color_hist)
             return fig, axs
 
     color_dl = color_dl if color_dl is not None else (0.2, 0.1, 0.7)
-    color_ml = color_ml if color_ml is not None else (0.2, 0.4, 0.3)
     if axes is None:
         cols = n_plots = int(n_classifiers * (n_classifiers-1) / 2)
         if draw_hist:
@@ -240,7 +269,7 @@ def scatter_comparison(
                 data[ii],
                 axis=axs[i, j],
                 label=labels[ii],
-                color=color,
+                color=color_hist,
             )
         else:
             _scattercomp(
@@ -248,9 +277,9 @@ def scatter_comparison(
                 axis=axs[i, j],
                 opacity=opacity,
                 labels=(labels[ii], labels[jj]),
-                color=color,
+                color_points=color_points,
+                color_default=color_hist,
                 color_dl=color_dl,
-                color_ml=color_ml,
             )
         j += 1
     while j < axs.shape[1]:

@@ -28,18 +28,23 @@ def _scattercomp(
     data: np.ndarray,
     axis: Axes,
     labels: tuple[str, str],
-    color_points: tuple[
-        tuple[float, float, float], tuple[float, float, float]
+    color: Union[
+        tuple[tuple[float, float, float], tuple[float, float, float]],
+        Sequence[tuple[float, float, float]]
     ],
     color_default: tuple[float, float, float],
     color_dl: tuple[float, float, float],
+    display_numbers: bool,
     opacity: Optional[np.ndarray] = None,
 ) -> None:
     n_datasets = data.shape[1]
     colors = np.zeros((n_datasets, 4))
-    colors[data[0] > data[1], :3] = color_points[0]
-    colors[data[0] < data[1], :3] = color_points[1]
-    colors[data[0] == data[1], :3] = color_default
+    if len(color) > 2:
+        colors[:, :3] = color
+    else:
+        colors[data[0] > data[1], :3] = color[0]
+        colors[data[0] < data[1], :3] = color[1]
+        colors[data[0] == data[1], :3] = color_default
     colors[:, 3] = opacity if opacity is not None else 1.0
 
     # draw scatterplot
@@ -65,34 +70,56 @@ def _scattercomp(
     mean2 = data[1].mean()
     opacity1, ls1 = (0.8, "-") if mean1 > mean2 else (0.5, "--")
     opacity2, ls2 = (0.8, "-") if mean2 > mean1 else (0.5, "--")
+    color1 = (0, 0, 0) if len(color) > 2 else color[0]
+    color2 = (0, 0, 0) if len(color) > 2 else color[1]
     axis.axhline(
         mean2,
         xmin=0,
         xmax=mean2,
-        color=color_points[1]+(opacity2, ),
+        color=color2+(opacity2, ),
         ls=ls2,
     )
     axis.axvline(
         mean1,
         ymin=0,
         ymax=mean1,
-        color=color_points[0]+(opacity1, ),
+        color=color1+(opacity1, ),
         ls=ls1,
     )
     axis.axhline(
         0,
         xmin=0,
         xmax=1,
-        color=color_points[0]+(0.5, ),
+        color=color1+(0.5, ),
         lw=4,
     )
     axis.axvline(
         0,
         ymin=0,
         ymax=1,
-        color=color_points[1]+(0.5, ),
+        color=color2+(0.5, ),
         lw=4,
     )
+    if display_numbers:
+        axis.annotate(
+            f"${mean2:.2f}$ | ${np.sum(data[0] < data[1])}$", size="large",
+            xy=(0.08, mean2),
+            ha="left", va="top",
+            color=color2,
+        )
+        axis.annotate(
+            f"${mean1:.2f}$ | ${np.sum(data[0] > data[1])}$", size="large",
+            xy=(mean1, 0.08),
+            ha="right", va="bottom",
+            color=color1,
+            rotation=270,
+        )
+        # axis.text(
+        #     0.05, 0.02,
+        #     s=str(np.sum(data[0] > data[1])), size="large",
+        #     ha="left", va="top",
+        #     color=color1,
+        # )
     axis.text(0.02, 0.98, s=labels[1], size="large", ha="left", va="top")
     axis.text(0.98, 0.02, s=labels[0], size="large", ha="right", va="bottom")
 
@@ -100,16 +127,20 @@ def _scattercomp(
 @overload
 def scatter_comparison(
     data: np.ndarray,
-    opacity: Optional[np.ndarray] = ...,
     labels: Optional[Sequence[str]] = ...,
-    axes: None = ...,
+    pairs: Optional[Sequence[tuple[int, int]]] = ...,
+    color: Optional[Union[
+        tuple[tuple[float, float, float], tuple[float, float, float]],
+        Sequence[tuple[float, float, float]]
+    ]] = ...,
+    opacity: Optional[np.ndarray] = ...,
+    axes: Union[Axes, np.ndarray] = ...,
     max_cols: int = ...,
     draw_hist: bool = ...,
-    color_points: Optional[
-        tuple[tuple[float, float, float], tuple[float, float, float]]
-    ] = ...,
+    display_numbers: bool = ...,
     color_hist: Optional[tuple[float, float, float]] = ...,
     color_dl: Optional[tuple[float, float, float]] = ...,
+    **kwargs,
 ) -> tuple[Figure, Axes]:
     ...
 
@@ -117,32 +148,40 @@ def scatter_comparison(
 @overload
 def scatter_comparison(
     data: np.ndarray,
-    opacity: Optional[np.ndarray] = ...,
     labels: Optional[Sequence[str]] = ...,
+    pairs: Optional[Sequence[tuple[int, int]]] = ...,
+    color: Optional[Union[
+        tuple[tuple[float, float, float], tuple[float, float, float]],
+        Sequence[tuple[float, float, float]]
+    ]] = ...,
+    opacity: Optional[np.ndarray] = ...,
     axes: Union[Axes, np.ndarray] = ...,
     max_cols: int = ...,
     draw_hist: bool = ...,
-    color_points: Optional[
-        tuple[tuple[float, float, float], tuple[float, float, float]]
-    ] = ...,
+    display_numbers: bool = ...,
     color_hist: Optional[tuple[float, float, float]] = ...,
     color_dl: Optional[tuple[float, float, float]] = ...,
+    **kwargs,
 ) -> None:
     ...
 
 
 def scatter_comparison(
     data: np.ndarray,
-    opacity: Optional[np.ndarray] = None,
     labels: Optional[Sequence[str]] = None,
+    pairs: Optional[Sequence[tuple[int, int]]] = None,
+    color: Optional[Union[
+        tuple[tuple[float, float, float], tuple[float, float, float]],
+        Sequence[tuple[float, float, float]]
+    ]] = None,
+    opacity: Optional[np.ndarray] = None,
     axes: Optional[Union[Axes, np.ndarray]] = None,
     max_cols: int = 4,
     draw_hist: bool = False,
-    color_points: Optional[
-        tuple[tuple[float, float, float], tuple[float, float, float]]
-    ] = None,
+    display_numbers: bool = True,
     color_hist: Optional[tuple[float, float, float]] = None,
     color_dl: Optional[tuple[float, float, float]] = None,
+    **kwargs,
 ) -> Optional[tuple[Figure, Union[Axes, np.ndarray]]]:
     """Creates scatterplots comparing the data of different categories.
     This produces plots for each combination of rows in the given
@@ -154,14 +193,25 @@ def scatter_comparison(
     Args:
         data (np.ndarray): A two dimensional array, e.g. consisting of
             accuracy values from different classifiers.
-        opacity (np.ndarray, optional): Opacity values that are used to
-            set alpha color values to the points in the scatter plot.
-            The length of this array has to be the same as the size of
-            the second dimension in ``data``.
         labels (Sequence[str], optional): A number of strings matching
             names of the categories or classifiers that are being
             compared. The length of this sequence has to match
             ``data.shape[0]``.
+        pairs (sequence of 2-tuples of int, optional): Which pairs of
+            classifiers to compare against one another. Defaults to all
+            possible combinations of two classifiers.
+        color (sequence of 3-tuples of floats, optional): Colors of
+            points in the scatterplots. The first color is used for
+            points below the diagonal line, the second for points above.
+            Points exactly on the diagonal use `color_hist`. The colors
+            are also used for the lines marking the mean values.
+            If a number of float tuples equal to the size of the second
+            dimension in ``data`` is given, the points in the scatter
+            plot will be colored accordingly.
+        opacity (np.ndarray, optional): Opacity values that are used to
+            set alpha color values to the points in the scatter plot.
+            The length of this array has to be the same as the size of
+            the second dimension in ``data``.
         axes (Axes | np.ndarray, optional): One or multiple axes in
             a numpy array. The plots will be drawn on these axes.
         max_cols (int, optional): If ``axes`` is not specified, this
@@ -169,15 +219,14 @@ def scatter_comparison(
             starting a new row of scatterplots. Defaults to 4.
         draw_hist (bool, optional): If True, also draws a histogram
             for each category. Defaults to False.
-        color_points (two 3-tuples of floats, optional): Colors of
-            points in the scatterplots. The first color is used for
-            points below the diagonal line, the second for points above.
-            Points exactly on the diagonal use `color_hist`. The colors
-            are also used for the lines marking the mean values.
+        display_numbers (bool, optional): Whether to display the number
+            of datasets where one classifier exceeds the other.
         color_hist (3-tuple of floats, optional): Color of the bars in
             histograms.
         color_dl (3-tuple of floats, optional): Color of the diagonal
             lines.
+        kwargs: Other keyword arguments directly passed to the figure
+            initialization method ``plt.subplots(n, m, **kwargs)``.
 
     Returns:
         Pyplot figure and axes containing all plots or None if ``axes``
@@ -196,7 +245,7 @@ def scatter_comparison(
                          f" data shape; should be {n_classifiers}")
 
     color_hist = color_hist if color_hist is not None else (0.7, 0.7, 0.1)
-    color_points = color_points if color_points is not None else (
+    color_points = color if color is not None else (
         (0.55, 0.1, 0.1), (0.1, 0.55, 0.1)
     )
     labels = labels if labels is not None else (
@@ -208,13 +257,16 @@ def scatter_comparison(
                 raise ValueError(f"Expected a single axes, got {type(axes)}")
             return _hist(data, axis=axes, label=labels[0], color=color_hist)
         else:
-            fig, axs = plt.subplots(1, 1)
+            fig, axs = plt.subplots(1, 1, **kwargs)
             _hist(data, axis=axs, label=labels[0], color=color_hist)
             return fig, axs
 
     color_dl = color_dl if color_dl is not None else (0.2, 0.1, 0.7)
     if axes is None:
-        cols = n_plots = int(n_classifiers * (n_classifiers-1) / 2)
+        if pairs is None:
+            cols = n_plots = int(n_classifiers * (n_classifiers-1) / 2)
+        else:
+            cols = n_plots = len(pairs)
         if draw_hist:
             cols += n_classifiers
             n_plots = cols
@@ -224,7 +276,7 @@ def scatter_comparison(
             rows = n_plots // max_cols
             if n_plots % max_cols != 0:
                 rows += 1
-        fig, axs = plt.subplots(rows, cols)
+        fig, axs = plt.subplots(rows, cols, **kwargs)
         axs = np.array(axs).reshape((rows, cols))
     else:
         if isinstance(axes, Axes):
@@ -233,10 +285,13 @@ def scatter_comparison(
             axes = np.array([[axes]])
         axs = axes
 
-    if draw_hist:
-        indices = combinations_with_replacement(range(n_classifiers), r=2)
+    if pairs is None:
+        if draw_hist:
+            indices = combinations_with_replacement(range(n_classifiers), r=2)
+        else:
+            indices = combinations(range(n_classifiers), r=2)
     else:
-        indices = combinations(range(n_classifiers), r=2)
+        indices = pairs
     i = j = 0
     for ii, jj in indices:
         if j == axs.shape[1]:
@@ -277,7 +332,8 @@ def scatter_comparison(
                 axis=axs[i, j],
                 opacity=opacity,
                 labels=(labels[ii], labels[jj]),
-                color_points=color_points,
+                color=color_points,
+                display_numbers=display_numbers,
                 color_default=color_hist,
                 color_dl=color_dl,
             )

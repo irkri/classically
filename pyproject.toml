@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "classically"
-version = "1.0.3"
+version = "1.0.4"
 description = "Classifier Comparison and Feature Analysis Tools in Python"
 authors = ["alienkrieg <alienkrieg@gmail.com>"]
 keywords = ["machine learning", "classification", "analysis"]

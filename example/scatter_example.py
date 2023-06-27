@@ -14,6 +14,7 @@ accuracy = np.array([
 fig, ax = scatter_comparison(
     accuracy[np.array([0, 1, 3]), :],
     labels=["A", "B", "D"],
+    display_numbers=False,
 )
 
 plt.savefig("scatter_example.png", dpi=512, bbox_inches='tight')

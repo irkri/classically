@@ -2,11 +2,11 @@ from typing import Optional, Sequence, overload
 
 import networkx as nx
 import numpy as np
-import scipy.stats as stats
 from matplotlib import pyplot as plt
 from matplotlib import ticker
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
+from scipy import stats
 
 
 def critical_difference_graph(
